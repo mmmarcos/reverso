@@ -9,8 +9,15 @@ import (
 // Address to listen for incoming connections
 const listenOn string = ":8080"
 
-// Handler function to responds to an HTTP request
-func HandleRequest(rw http.ResponseWriter, req *http.Request) {
+// Reverso is an HTTP handler behaving as a reverse proxy.
+//
+// Reverso forwards incoming requests to a target server and
+// sends the response back to the client.
+type Reverso struct {
+}
+
+// Handler function to responds to an HTTP request.
+func (r *Reverso) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	log.Println(req.Method, req.URL.Path)
 
 	fmt.Fprintf(rw, "Hi there!")
@@ -19,8 +26,8 @@ func HandleRequest(rw http.ResponseWriter, req *http.Request) {
 func main() {
 	log.SetFlags(log.Ltime | log.Lmicroseconds)
 
-	// Register handler function
-	http.HandleFunc("/", HandleRequest)
+	// Register proxy
+	http.Handle("/", &Reverso{})
 
 	log.Printf("Listen on '%v'", listenOn)
 	log.Fatal(http.ListenAndServe(listenOn, nil))

@@ -13,7 +13,8 @@ func TestHandleRequest(t *testing.T) {
 	rec := httptest.NewRecorder()
 
 	// Test
-	HandleRequest(rec, req)
+	r := &Reverso{}
+	r.ServeHTTP(rec, req)
 
 	const expected string = "Hi there!"
 
