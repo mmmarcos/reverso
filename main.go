@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -29,7 +30,8 @@ func (r *Reverso) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 	// Check if origin URL is valid
 	if r.originURL.Host == "" {
-		log.Fatal("Origin URL is empty")
+		r.fail(rw, &InternalError{"Origin URL is empty"}) // Fatal?
+		return
 	}
 
 	// Modify request to forward to the origin server
@@ -41,14 +43,38 @@ func (r *Reverso) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	log.Printf("Forwarding request to: '%v'", req.URL.String())
 	res, err := (&http.Client{}).Do(req)
 	if err != nil {
-		log.Printf("ERROR: %v", err)
-		rw.WriteHeader(http.StatusInternalServerError)
+		r.fail(rw, &InternalError{err.Error()})
 		return
 	}
 
-	// Write response back
+	// Copy response from origin
+	r.copyResponse(res, rw)
+}
+
+func (r *Reverso) fail(rw http.ResponseWriter, err error) {
+	log.Println(err)
+	rw.WriteHeader(http.StatusInternalServerError)
+}
+
+func (r *Reverso) copyResponse(res *http.Response, rw http.ResponseWriter) {
+	// Copy headers
+	for key, values := range res.Header {
+		for _, value := range values {
+			rw.Header().Add(key, value)
+		}
+	}
 	rw.WriteHeader(res.StatusCode)
+
+	// Write response back
 	io.Copy(rw, res.Body)
+}
+
+type InternalError struct {
+	msg string
+}
+
+func (e *InternalError) Error() string {
+	return fmt.Sprintf("Error: %v", e.msg)
 }
 
 func main() {
