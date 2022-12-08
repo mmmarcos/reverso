@@ -1,7 +1,7 @@
 package main
 
 import (
-	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
@@ -32,10 +32,23 @@ func (r *Reverso) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		log.Fatal("Origin URL is empty")
 	}
 
-	// TODO: Forward request to origin server
-	log.Printf("Will forward to: '%v'", r.originURL.String())
+	// Modify request to forward to the origin server
+	req.URL.Scheme = r.originURL.Scheme
+	req.URL.Host = r.originURL.Host
+	req.RequestURI = "" // Should be empty for client requests (see src/net/http/client.go:217)
 
-	fmt.Fprintf(rw, "Hi there!")
+	// Send request to the origin server
+	log.Printf("Forwarding request to: '%v'", req.URL.String())
+	res, err := (&http.Client{}).Do(req)
+	if err != nil {
+		log.Printf("ERROR: %v", err)
+		rw.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	// Write response back
+	rw.WriteHeader(res.StatusCode)
+	io.Copy(rw, res.Body)
 }
 
 func main() {

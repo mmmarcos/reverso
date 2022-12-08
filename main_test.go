@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -9,21 +10,32 @@ import (
 )
 
 func TestHandleRequest(t *testing.T) {
+	const expected string = "Hello from the other side"
+
 	// Mock objects
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
+	svr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, expected)
+	}))
+	defer svr.Close()
 
-	// Test
-	r := &Reverso{originURL: url.URL{Scheme: "http", Host: "localhost:8081"}}
+	// Parse origin server URL
+	fmt.Println(string(svr.URL))
+	serverURL, err := url.Parse(svr.URL)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// Test reverse proxy
+	r := &Reverso{originURL: *serverURL}
 	r.ServeHTTP(rec, req)
-
-	const expected string = "Hi there!"
 
 	res := rec.Result()
 	defer res.Body.Close()
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
-		t.Errorf("Error: %v", err)
+		t.Error(err)
 	}
 	if string(body) != expected {
 		t.Errorf("Expected '%v', got '%v'", expected, string(body))
