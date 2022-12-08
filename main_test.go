@@ -4,6 +4,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 )
 
@@ -13,7 +14,7 @@ func TestHandleRequest(t *testing.T) {
 	rec := httptest.NewRecorder()
 
 	// Test
-	r := &Reverso{}
+	r := &Reverso{originURL: url.URL{Scheme: "http", Host: "localhost:8081"}}
 	r.ServeHTTP(rec, req)
 
 	const expected string = "Hi there!"
