@@ -14,10 +14,11 @@ const (
 )
 
 func main() {
-	log.SetFlags(log.Ltime | log.Lmicroseconds)
+	log.SetFlags(log.Lshortfile | log.Ltime | log.Lmicroseconds)
 
 	// Register proxy
-	http.Handle("/", &Reverso{originURL: url.URL{Scheme: "http", Host: originHost}})
+	http.Handle("/", &Reverso{originURL: url.URL{Scheme: "http", Host: originHost},
+		cache: *NewCacheMiddleware()})
 
 	log.Printf("Listen on: '%v'", listenOn)
 	log.Fatal(http.ListenAndServe(listenOn, nil))

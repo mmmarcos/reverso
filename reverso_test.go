@@ -26,7 +26,7 @@ func TestHandleSimpleRequest(t *testing.T) {
 	defer svr.Close()
 
 	// Test reverse proxy
-	r := &Reverso{originURL: parseServerURL(svr.URL)}
+	r := &Reverso{originURL: parseServerURL(svr.URL), cache: *NewCacheMiddleware()}
 	r.ServeHTTP(rec, req)
 
 	res := rec.Result()
@@ -53,7 +53,7 @@ func TestHandleTeapotRequest(t *testing.T) {
 	defer svr.Close()
 
 	// Test reverse proxy
-	r := &Reverso{originURL: parseServerURL(svr.URL)}
+	r := &Reverso{originURL: parseServerURL(svr.URL), cache: *NewCacheMiddleware()}
 	r.ServeHTTP(rec, req)
 
 	res := rec.Result()
