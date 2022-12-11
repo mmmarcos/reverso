@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"log"
 	"net/http"
+	"sync"
 	"time"
 )
 
@@ -13,6 +14,7 @@ import (
 // Response are indexed by the request URL path and are stored
 // only if they contain the "Expires" header.
 type CacheMiddleware struct {
+	mutex sync.RWMutex
 	cache map[string]*cachedResponse
 }
 
@@ -33,17 +35,22 @@ func NewCacheMiddleware() *CacheMiddleware {
 func (c *CacheMiddleware) ProcessRequest(rw http.ResponseWriter, req *http.Request) {
 	log.Printf("Processing request for: '%v'", req.URL.Path)
 
-	entry, ok := c.cache[req.URL.Path]
+	cached, ok := c.get(req.URL.Path)
 
-	// Response is not on cache or already expired
-	if !ok || entry.expires <= time.Now().Unix() {
+	// Response is not on cache
+	if !ok {
 		setCacheStatus(rw, "MISS")
-		delete(c.cache, req.URL.Path) // not necessary?
+		return
+	}
+	// Response in cache expired
+	if cached.expires <= time.Now().Unix() {
+		setCacheStatus(rw, "MISS")
+		c.delete(req.URL.Path)
 		return
 	}
 
 	// Read cached response
-	res, err := http.ReadResponse(bufio.NewReader(bytes.NewReader(entry.responseData)), req)
+	res, err := http.ReadResponse(bufio.NewReader(bytes.NewReader(cached.responseData)), req)
 	if err != nil {
 		log.Printf("Error reading response stored in cache: %v", err)
 		setCacheStatus(rw, "MISS")
@@ -72,7 +79,27 @@ func (c *CacheMiddleware) ProcessResponse(res *http.Response, req *http.Request)
 	}
 
 	b := DumpResponse(res)
-	c.cache[req.URL.Path] = &cachedResponse{responseData: b.Bytes(), expires: t.Unix()}
+
+	c.update(req.URL.Path, &cachedResponse{responseData: b.Bytes(), expires: t.Unix()})
+}
+
+func (c *CacheMiddleware) get(URLPath string) (entry *cachedResponse, ok bool) {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+	entry, ok = c.cache[URLPath]
+	return
+}
+
+func (c *CacheMiddleware) update(URLPath string, response *cachedResponse) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	c.cache[URLPath] = response
+}
+
+func (c *CacheMiddleware) delete(URLPath string) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	delete(c.cache, URLPath)
 }
 
 func setCacheStatus(rw http.ResponseWriter, status string) {
