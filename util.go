@@ -16,10 +16,26 @@ func WriteResponse(rw http.ResponseWriter, res *http.Response) {
 			rw.Header().Add(key, value)
 		}
 	}
+
+	// The preferred way to send Trailers is to predeclare in the headers
+	// which trailers you will later send by setting the "Trailer" header
+	// to the names of the trailer keys which will come later.
+	// See Examples on https://pkg.go.dev/net/http#ResponseWriter
+	for key := range res.Trailer {
+		rw.Header().Add("Trailer", key)
+	}
+
 	rw.WriteHeader(res.StatusCode)
 
 	// Write body
 	io.Copy(rw, res.Body)
+
+	// Write Trailers headers
+	for key, values := range res.Trailer {
+		for _, value := range values {
+			rw.Header().Add(key, value)
+		}
+	}
 }
 
 // Dumps a http.Response into a bytes.Buffer

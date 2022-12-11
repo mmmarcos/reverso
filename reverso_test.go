@@ -12,16 +12,32 @@ import (
 
 // Checks if client receives response sent by origin
 func TestHandleSimpleRequest(t *testing.T) {
-	const expectedBodyStr string = "Hello from the other side"
-	const customHeaderKey string = "X-Test-Header"
-	const customHeaderVal string = "Custom header from origin"
+	expectedBody := "Hello from the other side"
+	expectedHeaders := map[string]string{
+		"X-Test-Header-1": "X-Test-Header-Value-1",
+		"X-Test-Header-2": "X-Test-Header-Value-2",
+	}
+	expectedTrailers := map[string]string{
+		"X-Test-Trailer-1": "X-Test-Trailer-Value-1",
+		"X-Test-Trailer-2": "X-Test-Trailer-Value-2",
+	}
 
 	// Setup
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
-	svr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set(customHeaderKey, customHeaderVal)
-		fmt.Fprint(w, expectedBodyStr)
+	svr := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		for key, value := range expectedHeaders {
+			rw.Header().Set(key, value)
+		}
+		for key := range expectedTrailers {
+			rw.Header().Add("Trailer", key)
+		}
+
+		fmt.Fprint(rw, expectedBody)
+
+		for key, value := range expectedTrailers {
+			rw.Header().Add(key, value)
+		}
 	}))
 	defer svr.Close()
 	r := &Reverso{originURL: parseServerURL(svr.URL), cache: *NewCacheMiddleware()}
@@ -36,12 +52,20 @@ func TestHandleSimpleRequest(t *testing.T) {
 		log.Fatal(err)
 	}
 
-	if string(body) != expectedBodyStr {
-		t.Errorf("Expected '%v', got '%v'", expectedBodyStr, string(body))
+	for key, value := range expectedHeaders {
+		if res.Header.Get(key) != value {
+			t.Errorf("Expected header '%v: %v', got '%v'", key, value, res.Header.Get(key))
+		}
 	}
 
-	if v := res.Header.Get(customHeaderKey); v != customHeaderVal {
-		t.Errorf("Expected header '%v:%v', got '%v'", customHeaderKey, customHeaderVal, v)
+	if string(body) != expectedBody {
+		t.Errorf("Expected body '%v', got '%v'", expectedBody, string(body))
+	}
+
+	for key, value := range expectedTrailers {
+		if res.Trailer.Get(key) != value {
+			t.Errorf("Expected trailer '%v: %v', got '%v'", key, value, res.Trailer.Get(key))
+		}
 	}
 }
 
@@ -78,6 +102,12 @@ func TestInvalidOriginURL(t *testing.T) {
 
 	if res.StatusCode != http.StatusInternalServerError {
 		t.Errorf("Expected status code '%v', got '%v'", http.StatusInternalServerError, res.StatusCode)
+	}
+}
+
+func assertEquals(expected, got string, t *testing.T) {
+	if got != expected {
+		t.Errorf("Expected '%v', got '%v'", expected, got)
 	}
 }
 
