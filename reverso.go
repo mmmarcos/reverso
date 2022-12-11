@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"net/http"
 	"net/url"
@@ -9,13 +8,15 @@ import (
 
 // Reverso is an HTTP handler behaving as a reverse proxy.
 //
-// Reverso forwards incoming requests to a target server and
-// sends the response back to the client.
+// Incoming requests are forwarded to the host specified in originURL.
+//
+// Responses containing the "Expires" header are stored in an in-memory cache
+// and served from there on further requests, as long as they do not expire
 type Reverso struct {
 	// Origin server URL to forward requests.
 	originURL url.URL
 
-	// In-memory cache middleware
+	// In-memory cache middleware to store response data.
 	cache CacheMiddleware
 }
 
@@ -23,46 +24,29 @@ type Reverso struct {
 func (r *Reverso) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	log.Println(req.Method, req.URL.Path)
 
-	r.cache.ProcessRequest(rw, req)
+	// Fetch from cache if available
+	r.cache.ProcessRequest(rw, req) // writes X-Cache-Status header
 
 	if rw.Header().Get("X-Cache-Status") == "MISS" {
+		// Modify request host and scheme to point to origin server
+		req.URL.Host = r.originURL.Host
+		req.URL.Scheme = r.originURL.Scheme
+		req.RequestURI = "" // Must be empty for client requests (see field docs in https://pkg.go.dev/net/http#Request)
 
-		// Fetch request from origin server
-		res, err := r.fetchFromOrigin(req)
+		// Fetch from origin server
+		log.Printf("Forwarding request to: '%v'", req.URL.String())
+		res, err := (&http.Client{}).Do(req)
 		if err != nil {
-			log.Println(err)
+			log.Printf("Error: %v", err)
 			rw.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		b := DumpResponse(res)
 
+		// Process response, stores in cache if contains Expires header
 		r.cache.ProcessResponse(ReadResponse(b.Bytes(), req), req)
 
+		// Write response back
 		WriteResponse(rw, ReadResponse(b.Bytes(), req))
 	}
-}
-
-func (r *Reverso) fetchFromOrigin(req *http.Request) (*http.Response, error) {
-	// Modify request to forward to origin server
-	req.URL.Scheme = r.originURL.Scheme
-	req.URL.Host = r.originURL.Host
-	req.RequestURI = "" // Should be empty for client requests (see src/net/http/client.go:217)
-
-	log.Printf("Forwarding request to: '%v'", req.URL.String())
-
-	// Send request to the origin server
-	res, err := (&http.Client{}).Do(req)
-	if err != nil {
-		return nil, &internalError{err.Error()}
-	}
-
-	return res, nil
-}
-
-type internalError struct {
-	msg string
-}
-
-func (e *internalError) Error() string {
-	return fmt.Sprintf("Error: %v", e.msg)
 }

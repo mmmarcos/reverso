@@ -13,7 +13,6 @@ func WriteResponse(rw http.ResponseWriter, res *http.Response) {
 	// Write header
 	for key, values := range res.Header {
 		for _, value := range values {
-			log.Println(key, value)
 			rw.Header().Add(key, value)
 		}
 	}

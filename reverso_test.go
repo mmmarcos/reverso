@@ -10,13 +10,13 @@ import (
 	"testing"
 )
 
-// Checks if client receives body and headers sent from origin
+// Checks if client receives response sent by origin
 func TestHandleSimpleRequest(t *testing.T) {
 	const expectedBodyStr string = "Hello from the other side"
 	const customHeaderKey string = "X-Test-Header"
 	const customHeaderVal string = "Custom header from origin"
 
-	// Mock objects
+	// Setup
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
 	svr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -24,27 +24,30 @@ func TestHandleSimpleRequest(t *testing.T) {
 		fmt.Fprint(w, expectedBodyStr)
 	}))
 	defer svr.Close()
-
-	// Test reverse proxy
 	r := &Reverso{originURL: parseServerURL(svr.URL), cache: *NewCacheMiddleware()}
+
+	// Test reverse proxy handler
 	r.ServeHTTP(rec, req)
 
 	res := rec.Result()
 	defer res.Body.Close()
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	bodyStr := readAll(res.Body)
-	if bodyStr != expectedBodyStr {
-		t.Errorf("Expected '%v', got '%v'", expectedBodyStr, bodyStr)
+	if string(body) != expectedBodyStr {
+		t.Errorf("Expected '%v', got '%v'", expectedBodyStr, string(body))
 	}
 
 	if v := res.Header.Get(customHeaderKey); v != customHeaderVal {
-		t.Errorf("Expected header value '%v', got '%v'", customHeaderVal, v)
+		t.Errorf("Expected header '%v:%v', got '%v'", customHeaderKey, customHeaderVal, v)
 	}
 }
 
 // Checks if client receives HTTP status code sent by origin
 func TestHandleTeapotRequest(t *testing.T) {
-	// Mock objects
+	// Setup
 	req := httptest.NewRequest(http.MethodGet, "/teapot", nil)
 	rec := httptest.NewRecorder()
 	svr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -52,7 +55,7 @@ func TestHandleTeapotRequest(t *testing.T) {
 	}))
 	defer svr.Close()
 
-	// Test reverse proxy
+	// Test reverse proxy handler
 	r := &Reverso{originURL: parseServerURL(svr.URL), cache: *NewCacheMiddleware()}
 	r.ServeHTTP(rec, req)
 
@@ -63,11 +66,13 @@ func TestHandleTeapotRequest(t *testing.T) {
 	}
 }
 
-// Checks for internal server errors when using an invalid server URL
 func TestInvalidOriginURL(t *testing.T) {
+	// Setup
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
 	r := &Reverso{} // empty origin URL
+
+	// Test reverse proxy handler
 	r.ServeHTTP(rec, req)
 	res := rec.Result()
 
@@ -83,13 +88,4 @@ func parseServerURL(rawURL string) url.URL {
 		log.Fatal(err)
 	}
 	return *serverURL
-}
-
-// Read all from r and return content as string
-func readAll(r io.Reader) string {
-	body, err := io.ReadAll(r)
-	if err != nil {
-		log.Fatal(err)
-	}
-	return string(body)
 }

@@ -2,14 +2,14 @@ package main
 
 import (
 	"bytes"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 )
 
-// Tests processing requests and responses resulting in HIT/MISS
+// Tests requests resulting in HIT/MISS
 func TestCacheMiddleware(t *testing.T) {
 	// Setup test
 	c := NewCacheMiddleware()
@@ -63,6 +63,6 @@ func makeDummyResponse() *http.Response {
 		ProtoMajor: 1,
 		ProtoMinor: 0,
 		Header:     make(http.Header),
-		Body:       ioutil.NopCloser(bytes.NewBufferString("Hello World")),
+		Body:       io.NopCloser(bytes.NewBufferString("Hello World")),
 	}
 }

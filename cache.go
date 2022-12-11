@@ -8,17 +8,21 @@ import (
 	"time"
 )
 
-// Basic in-memory cache for response data (currently only a named type for map)
+// Simple in-memory cache middleware.
+//
+// Response are indexed by the request URL path and are stored
+// only if they contain the "Expires" header.
 type CacheMiddleware struct {
 	cache map[string]*cachedResponse
 }
 
+// A cached response with its given Expires
 type cachedResponse struct {
 	responseData []byte
 	expires      int64
 }
 
-// Creates an empty in-memory cache middleware
+// Creates an empty cache middleware
 func NewCacheMiddleware() *CacheMiddleware {
 	var c CacheMiddleware
 	c.cache = make(map[string]*cachedResponse)
@@ -31,23 +35,22 @@ func (c *CacheMiddleware) ProcessRequest(rw http.ResponseWriter, req *http.Reque
 
 	entry, ok := c.cache[req.URL.Path]
 
-	// Not on cache or expired response
+	// Response is not on cache or already expired
 	if !ok || entry.expires <= time.Now().Unix() {
-		log.Printf("Cache MISS")
-		rw.Header().Add("X-Cache-Status", "MISS")
-
+		setCacheStatus(rw, "MISS")
 		delete(c.cache, req.URL.Path) // not necessary?
 		return
 	}
 
-	// Read cached (and not expired) response
+	// Read cached response
 	res, err := http.ReadResponse(bufio.NewReader(bytes.NewReader(entry.responseData)), req)
 	if err != nil {
-		log.Fatal(err)
+		log.Printf("Error reading response stored in cache: %v", err)
+		setCacheStatus(rw, "MISS")
+		return
 	}
 
-	log.Printf("Cache HIT")
-	rw.Header().Add("X-Cache-Status", "HIT")
+	setCacheStatus(rw, "HIT")
 	WriteResponse(rw, res)
 }
 
@@ -70,4 +73,9 @@ func (c *CacheMiddleware) ProcessResponse(res *http.Response, req *http.Request)
 
 	b := DumpResponse(res)
 	c.cache[req.URL.Path] = &cachedResponse{responseData: b.Bytes(), expires: t.Unix()}
+}
+
+func setCacheStatus(rw http.ResponseWriter, status string) {
+	log.Printf("Cache %v", status)
+	rw.Header().Add("X-Cache-Status", status)
 }
