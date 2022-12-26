@@ -39,7 +39,7 @@ func (r *Reverso) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 		if err != nil {
 			log.Printf("Error: %v", err)
-			rw.WriteHeader(http.StatusInternalServerError)
+			rw.WriteHeader(http.StatusBadGateway)
 			return
 		}
 
