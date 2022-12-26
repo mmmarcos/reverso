@@ -35,12 +35,14 @@ func (r *Reverso) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 		// Fetch from origin server
 		log.Printf("Forwarding request to: '%v'", req.URL.String())
-		res, err := (&http.Client{}).Do(req)
+		res, err := http.DefaultTransport.RoundTrip(req)
+
 		if err != nil {
 			log.Printf("Error: %v", err)
 			rw.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+
 		b := DumpResponse(res)
 
 		// Process response, stores in cache if contains Expires header
