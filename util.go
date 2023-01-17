@@ -10,17 +10,11 @@ import (
 
 // Writes response into response writer
 func WriteResponse(rw http.ResponseWriter, res *http.Response) {
-	// Write header
-	for key, values := range res.Header {
-		for _, value := range values {
-			rw.Header().Add(key, value)
-		}
-	}
+	copyHeaders(rw.Header(), res.Header)
 
 	// The preferred way to send Trailers is to predeclare in the headers
 	// which trailers you will later send by setting the "Trailer" header
 	// to the names of the trailer keys which will come later.
-	// See Examples on https://pkg.go.dev/net/http#ResponseWriter
 	for key := range res.Trailer {
 		rw.Header().Add("Trailer", key)
 	}
@@ -30,12 +24,7 @@ func WriteResponse(rw http.ResponseWriter, res *http.Response) {
 	// Write body
 	io.Copy(rw, res.Body)
 
-	// Write Trailers headers
-	for key, values := range res.Trailer {
-		for _, value := range values {
-			rw.Header().Add(key, value)
-		}
-	}
+	copyHeaders(rw.Header(), res.Trailer)
 }
 
 // Dumps a http.Response into a bytes.Buffer
@@ -53,4 +42,12 @@ func ReadResponse(resData []byte, req *http.Request) *http.Response {
 		log.Println("Error reading response from buffer")
 	}
 	return res
+}
+
+func copyHeaders(dst, src http.Header) {
+	for key, values := range src {
+		for _, value := range values {
+			dst.Add(key, value)
+		}
+	}
 }
