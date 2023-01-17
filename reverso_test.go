@@ -105,12 +105,6 @@ func TestInvalidOriginURL(t *testing.T) {
 	}
 }
 
-func assertEquals(expected, got string, t *testing.T) {
-	if got != expected {
-		t.Errorf("Expected '%v', got '%v'", expected, got)
-	}
-}
-
 // Parses the given raw URL into a url.URL
 func parseServerURL(rawURL string) url.URL {
 	serverURL, err := url.Parse(rawURL)
